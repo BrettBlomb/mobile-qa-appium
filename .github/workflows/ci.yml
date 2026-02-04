@@ -1,0 +1,93 @@
+name: Mobile QA - Appium (Android + iOS)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  android:
+    name: Android (emulator) + API
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Appium + driver
+        run: |
+          npm i -g appium
+          appium driver install uiautomator2
+          appium -v
+          appium driver list --installed
+
+      - name: Start Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_5
+          script: |
+            adb devices
+            appium --address 127.0.0.1 --port 4723 --log-level info &
+            sleep 5
+            mvn -q -DplatformName=ANDROID \
+                  -DdeviceName="Android Emulator" \
+                  -DappiumUrl="http://127.0.0.1:4723" \
+                  -DappPath="apps/android-debug.apk" \
+                  test
+
+  ios:
+    name: iOS (simulator) + API
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Appium + driver
+        run: |
+          npm i -g appium
+          appium driver install xcuitest
+          appium -v
+          appium driver list --installed
+
+      - name: Boot iOS simulator
+        run: |
+          xcrun simctl list devices available
+          xcrun simctl boot "iPhone 15" || true
+          xcrun simctl bootstatus "iPhone 15" -b
+
+      - name: Run tests
+        run: |
+          appium --address 127.0.0.1 --port 4723 --log-level info &
+          sleep 5
+          mvn -q -DplatformName=IOS \
+                -DdeviceName="iPhone 15" \
+                -DappiumUrl="http://127.0.0.1:4723" \
+                -DappPath="apps/ios-debug.app" \
+                test
